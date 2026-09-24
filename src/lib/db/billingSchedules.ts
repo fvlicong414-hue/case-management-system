@@ -58,7 +58,10 @@ export async function listBillingSchedules(
   return query(sql, params);
 }
 
-/** 未請求の請求予定を顧客・請求月で絞り込む(月次請求作成画面用) */
+/**
+ * 未請求の請求予定を顧客・請求月で絞り込む(月次請求作成画面用)。
+ * 「指定した月」だけでなく「それ以前の月で請求し忘れている分」も自動的に対象へ含める(月次自動繰越)。
+ */
 export async function listUnbilledSchedules(
   tenantId: string,
   customerId: string,
@@ -72,9 +75,9 @@ export async function listUnbilledSchedules(
     FROM billing_schedules b
     LEFT JOIN projects p ON p.id = b.project_id
     LEFT JOIN estimates e ON e.id = b.estimate_id
-    WHERE b.tenant_id = $1 AND b.customer_id = $2 AND b.billing_month = $3 AND b.status = '未請求'
+    WHERE b.tenant_id = $1 AND b.customer_id = $2 AND b.billing_month <= $3 AND b.status = '未請求'
       AND b.invoice_id IS NULL
-    ORDER BY p.project_name ASC`;
+    ORDER BY b.billing_month ASC, p.project_name ASC`;
   return query(sql, [tenantId, customerId, billingMonth]);
 }
 
@@ -186,4 +189,108 @@ export async function markBillingSchedulesPaid(invoiceId: string): Promise<void>
     now,
     invoiceId,
   ]);
+}
+
+/**
+ * 既存の請求予定(未請求のもののみ)に、追加工事(+)や未使用部材の削減(-)などの
+ * 調整行を1件だけ追加する。合計金額と見積金額の一致チェックは行わない
+ * (確定後の運用上の調整のため)。
+ */
+export async function addSingleBillingSchedule(
+  estimateId: string,
+  input: { billingType: BillingType; billingMonth: string; scheduledAmount: number; memo?: string }
+): Promise<BillingSchedule> {
+  const estimate = await getEstimate(estimateId);
+  if (!estimate) throw new Error("見積が見つかりません");
+  const id = generateId();
+  const now = nowIso();
+  // 原価は金額の比率がわからないため0円按分とし、必要に応じて後から updateBillingScheduleCost で調整する
+  await query(
+    `INSERT INTO billing_schedules (id, tenant_id, estimate_id, project_id, customer_id, billing_month,
+      billing_type, scheduled_amount, cost_allocated, gross_profit, status, memo, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $8, '未請求', $9, $10, $11)`,
+    [
+      id,
+      estimate.tenantId,
+      estimate.id,
+      estimate.projectId,
+      estimate.customerId,
+      input.billingMonth,
+      input.billingType,
+      input.scheduledAmount,
+      input.memo ?? null,
+      now,
+      now,
+    ]
+  );
+  return (await getBillingSchedule(id))!;
+}
+
+/** 未請求の請求予定の金額を編集する(送付前の調整用) */
+export async function updateBillingScheduleAmount(
+  id: string,
+  input: { billingType?: BillingType; billingMonth?: string; scheduledAmount: number }
+): Promise<BillingSchedule> {
+  const current = await getBillingSchedule(id);
+  if (!current) throw new Error("請求予定が見つかりません");
+  if (current.status !== "未請求" || current.invoiceId) {
+    throw new Error("請求済の請求予定は編集できません");
+  }
+  const now = nowIso();
+  const grossProfit = round2(input.scheduledAmount - current.costAllocated);
+  await query(
+    `UPDATE billing_schedules SET billing_type = $1, billing_month = $2, scheduled_amount = $3,
+      gross_profit = $4, updated_at = $5 WHERE id = $6`,
+    [
+      input.billingType ?? current.billingType,
+      input.billingMonth ?? current.billingMonth,
+      input.scheduledAmount,
+      grossProfit,
+      now,
+      id,
+    ]
+  );
+  return (await getBillingSchedule(id))!;
+}
+
+/** 未請求の請求予定を削除する */
+export async function deleteBillingSchedule(id: string): Promise<void> {
+  const current = await getBillingSchedule(id);
+  if (!current) return;
+  if (current.status !== "未請求" || current.invoiceId) {
+    throw new Error("請求済の請求予定は削除できません");
+  }
+  await query(`DELETE FROM billing_schedules WHERE id = $1`, [id]);
+}
+
+/**
+ * 案件が完了になった際、受注済み見積のうちまだ請求予定が1件も作られていないものについて、
+ * 見積金額をそのまま「出来高」区分・当月請求で自動的に請求予定へ反映する(手打ちの解消)。
+ * 既に請求予定がある見積はスキップする(重複作成防止)。
+ */
+export async function autoCreateBillingSchedulesForProject(
+  tenantId: string,
+  projectId: string
+): Promise<{ createdCount: number }> {
+  const estimates = await query<{ id: string; salesTotal: number; costTotal: number }>(
+    `SELECT id, sales_total as "salesTotal", cost_total as "costTotal" FROM estimates
+     WHERE tenant_id = $1 AND project_id = $2 AND status = '受注'`,
+    [tenantId, projectId]
+  );
+  const currentMonth = new Date().toISOString().slice(0, 7);
+  let createdCount = 0;
+  for (const est of estimates) {
+    const existing = await query(`SELECT id FROM billing_schedules WHERE estimate_id = $1 LIMIT 1`, [est.id]);
+    if (existing.length > 0) continue;
+    if (!est.salesTotal || est.salesTotal <= 0) continue;
+    const result = await createBillingSchedules(
+      {
+        estimateId: est.id,
+        schedules: [{ billingType: "出来高", billingMonth: currentMonth, scheduledAmount: est.salesTotal }],
+      },
+      { allowMismatch: true }
+    );
+    createdCount += result.schedules.length;
+  }
+  return { createdCount };
 }

@@ -21,7 +21,14 @@ export default async function ItemsPage({
       <PageHeader
         title="品目マスター"
         subtitle={`${items.length}件`}
-        actions={<LinkButton href="/items/new">+ 新規品目登録</LinkButton>}
+        actions={
+          <>
+            <LinkButton href="/items/import" variant="secondary">
+              Excel一括取り込み
+            </LinkButton>
+            <LinkButton href="/items/new">+ 新規品目登録</LinkButton>
+          </>
+        }
       />
       <AlertBanner error={sp.error} success={sp.success} />
 

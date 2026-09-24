@@ -12,6 +12,7 @@ export async function updateSettingsAction(formData: FormData) {
     await updateSettings(session.tenantId, {
       taxRate: getNumber(formData, "taxRate", 0.1) / 100,
       overheadRate: getNumber(formData, "overheadRate", 0) / 100,
+      monthlyFixedCost: getNumber(formData, "monthlyFixedCost", 0),
       invoiceNumberPrefix: getStr(formData, "invoiceNumberPrefix") || "INV-",
       estimateNumberPrefix: getStr(formData, "estimateNumberPrefix") || "EST-",
       projectNumberPrefix: getStr(formData, "projectNumberPrefix") || "PRJ-",

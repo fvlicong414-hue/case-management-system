@@ -1,7 +1,9 @@
 import { getCustomer } from "@/lib/db/customers";
 import { listProjects } from "@/lib/db/projects";
+import { getCustomerMonthlySales } from "@/lib/db/reports";
 import { updateCustomerAction, toggleCustomerActiveAction } from "@/lib/actions/customers";
 import { Card, CardHeader, Field, Input, Textarea, Button, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
+import { formatCurrency } from "@/lib/calc";
 import { AlertBanner } from "@/components/ui/alert";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -18,6 +20,7 @@ export default async function CustomerDetailPage({
   const customer = await getCustomer(id);
   if (!customer) notFound();
   const projects = await listProjects(customer.tenantId, { customerId: id });
+  const monthlySales = await getCustomerMonthlySales(customer.tenantId, id, 6);
 
   const boundUpdate = updateCustomerAction.bind(null, id);
   const boundToggle = toggleCustomerActiveAction.bind(null, id, !customer.isActive);
@@ -102,6 +105,22 @@ export default async function CustomerDetailPage({
           )}
         </Card>
       </div>
+
+      <Card className="mt-5">
+        <CardHeader title="月次売上履歴" subtitle="直近6か月の請求ベース売上(税抜、取消を除く)" />
+        {monthlySales.every((m) => m.totalAmount === 0) ? (
+          <EmptyState>まだ請求実績がありません</EmptyState>
+        ) : (
+          <div className="grid grid-cols-3 gap-3 p-4 sm:grid-cols-6">
+            {monthlySales.map((m) => (
+              <div key={m.billingMonth} className="rounded-md bg-gray-50 p-3 text-center">
+                <p className="text-xs text-gray-500">{m.billingMonth}</p>
+                <p className="mt-1 text-sm font-semibold text-gray-800">{formatCurrency(m.totalAmount)}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

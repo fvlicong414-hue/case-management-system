@@ -228,6 +228,7 @@ CREATE TABLE IF NOT EXISTS settings (
   tenant_id TEXT NOT NULL UNIQUE,
   tax_rate DOUBLE PRECISION NOT NULL DEFAULT 0.10,
   overhead_rate DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+  monthly_fixed_cost DOUBLE PRECISION NOT NULL DEFAULT 0.0,
   invoice_number_prefix TEXT NOT NULL DEFAULT 'INV-',
   estimate_number_prefix TEXT NOT NULL DEFAULT 'EST-',
   project_number_prefix TEXT NOT NULL DEFAULT 'PRJ-',
@@ -242,8 +243,52 @@ CREATE TABLE IF NOT EXISTS settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE IF NOT EXISTS item_price_tiers (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  item_master_id TEXT NOT NULL,
+  tier_name TEXT NOT NULL,
+  sales_price DOUBLE PRECISION NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_orders (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  order_no TEXT NOT NULL,
+  order_type TEXT NOT NULL DEFAULT '発注書',
+  supplier_name TEXT NOT NULL,
+  project_id TEXT,
+  title TEXT,
+  order_date TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT '下書き',
+  memo TEXT,
+  created_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS purchase_order_items (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL,
+  purchase_order_id TEXT NOT NULL,
+  item_code TEXT,
+  item_name TEXT NOT NULL,
+  specification TEXT,
+  quantity DOUBLE PRECISION NOT NULL DEFAULT 1,
+  unit TEXT,
+  memo TEXT,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE INDEX IF NOT EXISTS idx_customers_tenant ON customers(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_projects_tenant ON projects(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_item_price_tiers_item ON item_price_tiers(item_master_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_orders_tenant ON purchase_orders(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_purchase_order_items_order ON purchase_order_items(purchase_order_id);
 CREATE INDEX IF NOT EXISTS idx_projects_customer ON projects(customer_id);
 CREATE INDEX IF NOT EXISTS idx_item_master_tenant ON item_master(tenant_id);
 CREATE INDEX IF NOT EXISTS idx_estimates_tenant ON estimates(tenant_id);

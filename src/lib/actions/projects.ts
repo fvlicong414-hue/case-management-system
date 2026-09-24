@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
 import { createProject, updateProject, updateProjectStatus } from "@/lib/db/projects";
+import { autoCreateBillingSchedulesForProject } from "@/lib/db/billingSchedules";
 import { getStr, getStrOrNull, errorRedirect, successRedirect } from "./util";
 import type { ProjectStatus } from "@/lib/db/types";
 
@@ -54,12 +55,19 @@ export async function updateProjectAction(id: string, formData: FormData) {
 }
 
 export async function changeProjectStatusAction(id: string, status: ProjectStatus) {
-  await requireSession();
+  const session = await requireSession();
   try {
     await updateProjectStatus(id, status);
+    let message = `ステータスを「${status}」に変更しました`;
+    if (status === "完了") {
+      const result = await autoCreateBillingSchedulesForProject(session.tenantId, id);
+      if (result.createdCount > 0) {
+        message += `(見積金額をもとに請求予定を${result.createdCount}件自動作成しました)`;
+      }
+    }
     revalidatePath("/projects");
     revalidatePath(`/projects/${id}`);
-    successRedirect(`/projects/${id}`, `ステータスを「${status}」に変更しました`);
+    successRedirect(`/projects/${id}`, message);
   } catch (e) {
     errorRedirect(`/projects/${id}`, e);
   }

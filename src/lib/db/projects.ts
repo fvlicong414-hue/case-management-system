@@ -11,6 +11,7 @@ const SELECT_COLS = `id, tenant_id as "tenantId", project_code as "projectCode",
   created_at as "createdAt", updated_at as "updatedAt"`;
 
 export interface ProjectSearch {
+  projectCode?: string;
   projectName?: string;
   siteName?: string;
   customerId?: string;
@@ -18,6 +19,8 @@ export interface ProjectSearch {
   internalOwnerId?: string;
   workCategory?: string;
   status?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 export async function listProjects(
@@ -27,6 +30,10 @@ export async function listProjects(
   const clauses = ["p.tenant_id = $1"];
   const params: any[] = [tenantId];
   let i = 2;
+  if (search.projectCode) {
+    clauses.push(`p.project_code ILIKE $${i++}`);
+    params.push(`%${search.projectCode}%`);
+  }
   if (search.projectName) {
     clauses.push(`p.project_name ILIKE $${i++}`);
     params.push(`%${search.projectName}%`);
@@ -50,6 +57,14 @@ export async function listProjects(
   if (search.status) {
     clauses.push(`p.status = $${i++}`);
     params.push(search.status);
+  }
+  if (search.dateFrom) {
+    clauses.push(`p.start_plan_date >= $${i++}`);
+    params.push(search.dateFrom);
+  }
+  if (search.dateTo) {
+    clauses.push(`p.start_plan_date <= $${i++}`);
+    params.push(search.dateTo);
   }
   const sql = `SELECT p.id, p.tenant_id as "tenantId", p.project_code as "projectCode", p.customer_id as "customerId",
       p.project_name as "projectName", p.site_name as "siteName", p.site_address as "siteAddress",

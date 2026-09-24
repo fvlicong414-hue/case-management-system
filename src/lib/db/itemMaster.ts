@@ -44,6 +44,13 @@ export async function getItemMaster(id: string): Promise<ItemMaster | undefined>
   return queryOne<ItemMaster>(`SELECT ${SELECT_COLS} FROM item_master WHERE id = $1`, [id]);
 }
 
+export async function getItemMasterByCode(tenantId: string, itemCode: string): Promise<ItemMaster | undefined> {
+  return queryOne<ItemMaster>(`SELECT ${SELECT_COLS} FROM item_master WHERE tenant_id = $1 AND item_code = $2`, [
+    tenantId,
+    itemCode,
+  ]);
+}
+
 export async function createItemMaster(
   tenantId: string,
   input: Omit<ItemMaster, "id" | "tenantId" | "isActive" | "createdAt" | "updatedAt">

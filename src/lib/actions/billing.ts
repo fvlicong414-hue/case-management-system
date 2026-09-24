@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession, can } from "@/lib/auth";
-import { createBillingSchedules, updateBillingScheduleCost } from "@/lib/db/billingSchedules";
+import { createBillingSchedules, updateBillingScheduleCost, addSingleBillingSchedule, updateBillingScheduleAmount, deleteBillingSchedule } from "@/lib/db/billingSchedules";
 import { getStr, getNumber, errorRedirect, successRedirect } from "./util";
 import type { BillingType } from "@/lib/db/types";
 
@@ -44,5 +44,49 @@ export async function updateBillingScheduleCostAction(id: string, formData: Form
     successRedirect("/billing-schedules", "原価按分額を更新しました");
   } catch (e) {
     errorRedirect("/billing-schedules", e);
+  }
+}
+
+/** 既存の請求予定に、追加工事(+)や削減(-)の調整行を1件追加する */
+export async function addBillingScheduleRowAction(estimateId: string, formData: FormData) {
+  await requireSession();
+  try {
+    const billingType = getStr(formData, "billingType") as BillingType;
+    const billingMonth = getStr(formData, "billingMonth");
+    const scheduledAmount = getNumber(formData, "scheduledAmount", 0);
+    if (!billingType || !billingMonth || scheduledAmount === 0) {
+      throw new Error("区分・請求月・金額(0円以外)を入力してください");
+    }
+    await addSingleBillingSchedule(estimateId, { billingType, billingMonth, scheduledAmount });
+    revalidatePath(`/estimates/${estimateId}`);
+    successRedirect(`/estimates/${estimateId}`, "請求予定に行を追加しました");
+  } catch (e) {
+    errorRedirect(`/estimates/${estimateId}`, e);
+  }
+}
+
+export async function editBillingScheduleAction(estimateId: string, scheduleId: string, formData: FormData) {
+  await requireSession();
+  try {
+    await updateBillingScheduleAmount(scheduleId, {
+      billingType: getStr(formData, "billingType") as BillingType,
+      billingMonth: getStr(formData, "billingMonth"),
+      scheduledAmount: getNumber(formData, "scheduledAmount", 0),
+    });
+    revalidatePath(`/estimates/${estimateId}`);
+    successRedirect(`/estimates/${estimateId}`, "請求予定を更新しました");
+  } catch (e) {
+    errorRedirect(`/estimates/${estimateId}`, e);
+  }
+}
+
+export async function deleteBillingScheduleAction(estimateId: string, scheduleId: string) {
+  await requireSession();
+  try {
+    await deleteBillingSchedule(scheduleId);
+    revalidatePath(`/estimates/${estimateId}`);
+    successRedirect(`/estimates/${estimateId}`, "請求予定を削除しました");
+  } catch (e) {
+    errorRedirect(`/estimates/${estimateId}`, e);
   }
 }

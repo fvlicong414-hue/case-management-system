@@ -44,6 +44,11 @@ async function ensureSchema(): Promise<void> {
   const pool = getPool();
   const schemaSql = fs.readFileSync(path.join(process.cwd(), "db", "postgres.sql"), "utf-8");
   await pool.query(schemaSql);
+  // 既存のテーブルに後から追加した列があれば反映する(新規構築時は元々列があるので何も起きない)
+  const migrationsPath = path.join(process.cwd(), "db", "migrations.sql");
+  if (fs.existsSync(migrationsPath)) {
+    await pool.query(fs.readFileSync(migrationsPath, "utf-8"));
+  }
 }
 
 function getSchemaReady(): Promise<void> {

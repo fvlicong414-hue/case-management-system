@@ -1,7 +1,7 @@
 import { requireSession } from "@/lib/auth";
 import { getDashboardData } from "@/lib/db/dashboard";
 import { formatCurrency, formatPercent } from "@/lib/calc";
-import { Card, CardHeader, EmptyState, PageHeader, StatusBadge } from "@/components/ui";
+import { Card, CardHeader, EmptyState, PageHeader, StatusBadge, LinkButton } from "@/components/ui";
 import { Table, Thead, Th, Tr, Td } from "@/components/ui/table";
 import Link from "next/link";
 
@@ -23,7 +23,15 @@ export default async function DashboardPage() {
 
   return (
     <div>
-      <PageHeader title="ダッシュボード" subtitle={`${monthLabel}の状況`} />
+      <PageHeader
+        title="ダッシュボード"
+        subtitle={`${monthLabel}の状況`}
+        actions={
+          <LinkButton href="/reports/annual" variant="secondary">
+            年間レポート
+          </LinkButton>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <StatCard label="顧客件数" value={`${data.customerCount}件`} />
@@ -33,10 +41,48 @@ export default async function DashboardPage() {
         <StatCard label="今月の請求予定額" value={formatCurrency(data.monthBillingScheduled)} />
         <StatCard label="今月の請求済額" value={formatCurrency(data.monthBilled)} />
         <StatCard label="今月の粗利" value={formatCurrency(data.monthGrossProfit)} />
-        <StatCard label="今月の簡易営業利益" value={formatCurrency(data.monthOperatingProfit)} />
-        <StatCard label="未請求件数" value={`${data.unbilledCount}件`} hint="請求予定のうち未請求" />
+        <StatCard label="今月の簡易営業利益" value={formatCurrency(data.monthOperatingProfit)} hint="間接経費率ベースの概算" />
+        {data.monthActualOperatingProfit !== null && (
+          <StatCard
+            label="今月の実質営業利益"
+            value={formatCurrency(data.monthActualOperatingProfit)}
+            hint="設定した月次固定費を差し引いた実額"
+          />
+        )}
+        <StatCard label="未請求件数" value={`${data.unbilledCount}件`} hint="請求予定のうち未請求(繰越分含む)" />
         <StatCard label="入金待ち件数" value={`${data.waitingPaymentCount}件`} hint="発行済・送付済の請求書" />
+        <StatCard label="発行済・未送付件数" value={`${data.issuedNotSentCount}件`} hint="送付し忘れがないか確認しましょう" />
       </div>
+
+      <Card className="mt-5">
+        <CardHeader title="未入金の顧客一覧" subtitle="発行済・送付済のまま入金が確認できていない請求" />
+        {data.unpaidCustomers.length === 0 ? (
+          <EmptyState>未入金の顧客はありません</EmptyState>
+        ) : (
+          <Table>
+            <Thead>
+              <tr>
+                <Th>顧客名</Th>
+                <Th>未入金件数</Th>
+                <Th>未入金合計</Th>
+              </tr>
+            </Thead>
+            <tbody>
+              {data.unpaidCustomers.map((u) => (
+                <Tr key={u.customerId}>
+                  <Td>
+                    <Link href={`/customers/${u.customerId}`} className="text-navy hover:underline">
+                      {u.customerName}
+                    </Link>
+                  </Td>
+                  <Td>{u.invoiceCount}件</Td>
+                  <Td>{formatCurrency(u.unpaidAmount)}</Td>
+                </Tr>
+              ))}
+            </tbody>
+          </Table>
+        )}
+      </Card>
 
       <div className="mt-5 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card>

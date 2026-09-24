@@ -8,10 +8,12 @@ import clsx from "clsx";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "ダッシュボード", icon: "📊" },
+  { href: "/reports/annual", label: "年間レポート", icon: "📈" },
   { href: "/customers", label: "顧客管理", icon: "🏢" },
   { href: "/projects", label: "案件管理", icon: "🏗️" },
   { href: "/items", label: "品目マスター", icon: "📦" },
   { href: "/estimates", label: "見積", icon: "📝" },
+  { href: "/purchase-orders", label: "発注書・見積依頼書", icon: "📦" },
   { href: "/billing-schedules", label: "請求予定", icon: "📅" },
   { href: "/invoices/new", label: "月次請求作成", icon: "🧾" },
   { href: "/invoices", label: "請求書", icon: "💴" },

@@ -9,6 +9,7 @@ import { query } from "@/lib/db/client";
 import { listBillingSchedules } from "@/lib/db/billingSchedules";
 import { listInvoices } from "@/lib/db/invoices";
 import { listDocumentLogs } from "@/lib/db/documentLogs";
+import { listPurchaseOrders } from "@/lib/db/purchaseOrders";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ entity: string }> }) {
   const session = await requireSession();
@@ -190,6 +191,63 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ ent
         rows
       );
       return csvResponse(csv, "invoice_items.csv");
+    }
+    case "item-price-tiers": {
+      const rows = await query(
+        `SELECT im.item_code as "itemCode", im.name as "itemName", ipt.tier_name as "tierName",
+          ipt.sales_price as "salesPrice"
+         FROM item_price_tiers ipt JOIN item_master im ON im.id = ipt.item_master_id
+         WHERE ipt.tenant_id = $1 ORDER BY im.item_code, ipt.tier_name`,
+        [tenantId]
+      );
+      const csv = toCsv(
+        [
+          { key: "itemCode", label: "品目コード" },
+          { key: "itemName", label: "品目名" },
+          { key: "tierName", label: "価格区分" },
+          { key: "salesPrice", label: "単価" },
+        ],
+        rows
+      );
+      return csvResponse(csv, "item_price_tiers.csv");
+    }
+    case "purchase-orders": {
+      const rows = await listPurchaseOrders(tenantId);
+      const csv = toCsv(
+        [
+          { key: "orderNo", label: "番号" },
+          { key: "orderType", label: "種別" },
+          { key: "supplierName", label: "仕入先" },
+          { key: "title", label: "件名" },
+          { key: "projectName", label: "関連案件" },
+          { key: "orderDate", label: "発注日" },
+          { key: "status", label: "ステータス" },
+        ],
+        rows
+      );
+      return csvResponse(csv, "purchase_orders.csv");
+    }
+    case "purchase-order-items": {
+      const rows = await query(
+        `SELECT po.order_no as "orderNo", poi.item_code as "itemCode", poi.item_name as "itemName",
+          poi.specification, poi.quantity, poi.unit, poi.memo
+         FROM purchase_order_items poi JOIN purchase_orders po ON po.id = poi.purchase_order_id
+         WHERE poi.tenant_id = $1 ORDER BY po.order_no, poi.sort_order`,
+        [tenantId]
+      );
+      const csv = toCsv(
+        [
+          { key: "orderNo", label: "発注番号" },
+          { key: "itemCode", label: "品番" },
+          { key: "itemName", label: "品名" },
+          { key: "specification", label: "仕様" },
+          { key: "quantity", label: "数量" },
+          { key: "unit", label: "単位" },
+          { key: "memo", label: "備考" },
+        ],
+        rows
+      );
+      return csvResponse(csv, "purchase_order_items.csv");
     }
     case "document-logs": {
       const rows = await listDocumentLogs(tenantId);

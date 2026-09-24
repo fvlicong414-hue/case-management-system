@@ -1,4 +1,5 @@
 import { query, queryOne } from "./client";
+import { getSettings } from "./settings";
 
 export interface DashboardData {
   customerCount: number;
@@ -9,8 +10,11 @@ export interface DashboardData {
   monthBilled: number;
   monthGrossProfit: number;
   monthOperatingProfit: number;
+  monthActualOperatingProfit: number | null;
   unbilledCount: number;
   waitingPaymentCount: number;
+  issuedNotSentCount: number;
+  unpaidCustomers: { customerId: string; customerName: string; unpaidAmount: number; invoiceCount: number }[];
   overdueInvoices: { id: string; invoiceNo: string; customerName: string; totalAmount: number; paymentDueDate: string }[];
   lowMarginProjects: { id: string; projectName: string; customerName: string; grossProfitRate: number; salesTotal: number }[];
   recentEstimates: { id: string; estimateNo: string; customerName: string; salesTotal: number; status: string; estimateDate: string }[];
@@ -86,6 +90,24 @@ export async function getDashboardData(tenantId: string): Promise<DashboardData>
     )?.c ?? 0
   );
 
+  const issuedNotSentCount = Number(
+    (
+      await queryOne<{ c: string }>("SELECT COUNT(*) as c FROM invoices WHERE tenant_id = $1 AND status = '発行済'", [
+        tenantId,
+      ])
+    )?.c ?? 0
+  );
+
+  const unpaidCustomers = await query(
+    `SELECT i.customer_id as "customerId", c.name as "customerName",
+      COALESCE(SUM(i.total_amount), 0) as "unpaidAmount", COUNT(*) as "invoiceCount"
+     FROM invoices i LEFT JOIN customers c ON c.id = i.customer_id
+     WHERE i.tenant_id = $1 AND i.status IN ('発行済','送付済')
+     GROUP BY i.customer_id, c.name
+     ORDER BY "unpaidAmount" DESC`,
+    [tenantId]
+  );
+
   const overdueInvoices = await query(
     `SELECT i.id, i.invoice_no as "invoiceNo", c.name as "customerName", i.total_amount as "totalAmount",
       i.payment_due_date as "paymentDueDate"
@@ -122,6 +144,10 @@ export async function getDashboardData(tenantId: string): Promise<DashboardData>
     [tenantId]
   );
 
+  const settings = await getSettings(tenantId);
+  const monthActualOperatingProfit =
+    settings.monthlyFixedCost > 0 ? Number(monthBilledRow?.gp ?? 0) - settings.monthlyFixedCost : null;
+
   return {
     customerCount,
     projectCount,
@@ -131,8 +157,15 @@ export async function getDashboardData(tenantId: string): Promise<DashboardData>
     monthBilled: Number(monthBilledRow?.subtotal ?? 0),
     monthGrossProfit: Number(monthBilledRow?.gp ?? 0),
     monthOperatingProfit: Number(monthBilledRow?.op ?? 0),
+    monthActualOperatingProfit,
     unbilledCount,
     waitingPaymentCount,
+    issuedNotSentCount,
+    unpaidCustomers: unpaidCustomers.map((u: any) => ({
+      ...u,
+      unpaidAmount: Number(u.unpaidAmount),
+      invoiceCount: Number(u.invoiceCount),
+    })),
     overdueInvoices: overdueInvoices as any,
     lowMarginProjects: lowMarginProjects as any,
     recentEstimates: recentEstimates as any,

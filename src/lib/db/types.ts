@@ -153,7 +153,7 @@ export interface Specification {
   updatedAt: string;
 }
 
-export type BillingType = "通常" | "着手金" | "中間金" | "完了金" | "追加";
+export type BillingType = "出来高" | "完了金";
 export type BillingScheduleStatus =
   | "未請求"
   | "請求書作成済"
@@ -233,7 +233,7 @@ export interface DocumentFormat {
   updatedAt: string;
 }
 
-export type DocumentLogType = "見積書" | "仕様書" | "請求書";
+export type DocumentLogType = "見積書" | "仕様書" | "請求書" | "手配書・指示書";
 export type DocumentLogStatus = "出力済" | "取消" | "再発行";
 
 export interface DocumentLog {
@@ -254,6 +254,7 @@ export interface Settings {
   tenantId: string;
   taxRate: number;
   overheadRate: number;
+  monthlyFixedCost: number;
   invoiceNumberPrefix: string;
   estimateNumberPrefix: string;
   projectNumberPrefix: string;

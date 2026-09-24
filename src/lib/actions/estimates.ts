@@ -17,6 +17,7 @@ import {
 } from "@/lib/db/estimates";
 import { getItemMaster } from "@/lib/db/itemMaster";
 import { getProject } from "@/lib/db/projects";
+import { parseStandardEstimateExcel } from "@/lib/import/estimateExcelParser";
 import { getStr, getStrOrNull, getNumber, errorRedirect, successRedirect } from "./util";
 
 export async function createEstimateAction(formData: FormData) {
@@ -160,5 +161,58 @@ export async function duplicateEstimateAction(id: string) {
     redirect(`/estimates/${newEstimate.id}?success=${encodeURIComponent("新版を作成しました")}`);
   } catch (e) {
     errorRedirect(`/estimates/${id}`, e);
+  }
+}
+
+/**
+ * 標準見積書フォーマットのExcelから見積を作成する。
+ * 完了済みの工事を記録するための機能のため、作成後は自動的に
+ * 「提出済」→「受注」まで一括で進める(ボタン一つで完結させる)。
+ */
+export async function importEstimateFromExcelAction(formData: FormData) {
+  const session = await requireSession();
+  const projectId = getStr(formData, "projectId");
+  try {
+    const project = await getProject(projectId);
+    if (!project) throw new Error("案件が見つかりません");
+    const file = formData.get("file");
+    if (!(file instanceof File) || file.size === 0) {
+      throw new Error("Excelファイルを選択してください");
+    }
+    const sheetName = getStrOrNull(formData, "sheetName") ?? undefined;
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const parsed = parseStandardEstimateExcel(buffer, sheetName);
+
+    const estimate = await createEstimate(session.tenantId, {
+      projectId,
+      customerId: project.customerId,
+      estimateDate: getStr(formData, "estimateDate") || new Date().toISOString().slice(0, 10),
+      title: parsed.title ?? undefined,
+      memo: parsed.memo ?? undefined,
+      createdBy: session.name,
+    });
+
+    for (const item of parsed.items) {
+      await addEstimateItem(estimate.id, {
+        itemName: item.itemName,
+        quantity: item.quantity,
+        unit: item.unit,
+        salesUnitPrice: item.salesUnitPrice,
+        costUnitPrice: 0,
+      });
+    }
+
+    // 完了済みの工事を登録する運用のため、提出済→受注まで自動的に進める
+    await submitEstimate(estimate.id);
+    await markEstimateOrdered(estimate.id);
+
+    revalidatePath("/estimates");
+    redirect(
+      `/estimates/${estimate.id}?success=${encodeURIComponent(
+        `Excelから見積を作成し、受注まで自動で進めました(明細${parsed.items.length}件)。原価単価は0円のため、確認・修正してください。`
+      )}`
+    );
+  } catch (e) {
+    errorRedirect(`/estimates/new?projectId=${projectId}`, e);
   }
 }

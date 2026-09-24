@@ -23,6 +23,12 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           <Field label="間接経費率(%)" required>
             <Input name="overheadRate" type="number" step="0.1" defaultValue={settings.overheadRate * 100} required />
           </Field>
+          <Field label="月次固定費(円)">
+            <Input name="monthlyFixedCost" type="number" step="1" defaultValue={settings.monthlyFixedCost} />
+            <p className="mt-1 text-[11px] text-gray-400">
+              入力すると、ダッシュボードで間接経費率ベースの簡易計算に加えて、実際の固定費を差し引いた営業利益も表示されます
+            </p>
+          </Field>
           <Field label="見積番号プレフィックス">
             <Input name="estimateNumberPrefix" defaultValue={settings.estimateNumberPrefix} />
           </Field>

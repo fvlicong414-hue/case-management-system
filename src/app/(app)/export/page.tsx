@@ -4,12 +4,15 @@ const EXPORTS = [
   { key: "customers", label: "顧客" },
   { key: "projects", label: "案件" },
   { key: "item-master", label: "品目マスター" },
+  { key: "item-price-tiers", label: "品目 得意先別単価" },
   { key: "estimates", label: "見積" },
   { key: "estimate-items", label: "見積明細" },
   { key: "specifications", label: "仕様書" },
   { key: "billing-schedules", label: "請求予定" },
   { key: "invoices", label: "請求書" },
   { key: "invoice-items", label: "請求明細" },
+  { key: "purchase-orders", label: "発注書・見積依頼書" },
+  { key: "purchase-order-items", label: "発注明細" },
   { key: "document-logs", label: "PDF出力履歴" },
 ];
 

@@ -17,7 +17,7 @@ import {
   duplicateEstimateAction,
 } from "@/lib/actions/estimates";
 import { saveSpecificationAction, publishSpecificationAction, cancelSpecificationAction } from "@/lib/actions/specifications";
-import { createBillingSchedulesAction } from "@/lib/actions/billing";
+import { createBillingSchedulesAction, addBillingScheduleRowAction, editBillingScheduleAction, deleteBillingScheduleAction } from "@/lib/actions/billing";
 import { Card, CardHeader, Field, Input, Textarea, Select, Button, PageHeader, StatusBadge, EmptyState } from "@/components/ui";
 import { Table, Thead, Th, Tr, Td } from "@/components/ui/table";
 import { AlertBanner } from "@/components/ui/alert";
@@ -99,6 +99,11 @@ export default async function EstimateDetailPage({
           <a href={`/api/pdf/estimate/${id}`} target="_blank" rel="noreferrer">
             <Button type="button" variant="secondary" size="sm">
               見積書PDF出力
+            </Button>
+          </a>
+          <a href={`/api/excel/estimate-package/${id}`} target="_blank" rel="noreferrer">
+            <Button type="button" variant="secondary" size="sm">
+              見積書・手配書・指示書 まとめてExcel出力
             </Button>
           </a>
         </div>
@@ -268,14 +273,14 @@ export default async function EstimateDetailPage({
       {estimate.status === "受注" && (
         <Card className="mt-5">
           <CardHeader
-            title="請求予定作成"
+            title="請求予定"
             subtitle={
               billingSchedules.length > 0
                 ? `作成済み ${billingSchedules.length}件 (合計 ${formatCurrency(billingTotal)})`
-                : "通常請求は1行、分割請求は複数行に入力してください"
+                : "見積金額を1行、または分割して複数行で入力してください"
             }
           />
-          {billingSchedules.length > 0 ? (
+          {billingSchedules.length > 0 && (
             <Table>
               <Thead>
                 <tr>
@@ -285,36 +290,86 @@ export default async function EstimateDetailPage({
                   <Th>原価按分</Th>
                   <Th>粗利</Th>
                   <Th>状態</Th>
+                  <Th></Th>
                 </tr>
               </Thead>
               <tbody>
                 {billingSchedules.map((b) => (
                   <Tr key={b.id}>
-                    <Td>{b.billingMonth}</Td>
-                    <Td>{b.billingType}</Td>
-                    <Td>{formatCurrency(b.scheduledAmount)}</Td>
-                    <Td>{formatCurrency(b.costAllocated)}</Td>
-                    <Td>{formatCurrency(b.grossProfit)}</Td>
-                    <Td>
-                      <StatusBadge status={b.status} />
-                    </Td>
+                    {b.status === "未請求" && !b.invoiceId ? (
+                      <>
+                        <form
+                          action={editBillingScheduleAction.bind(null, id, b.id)}
+                          className="contents"
+                        >
+                          <Td>
+                            <Input name="billingMonth" type="month" defaultValue={b.billingMonth} className="w-32" />
+                          </Td>
+                          <Td>
+                            <Select name="billingType" defaultValue={b.billingType} className="w-24">
+                              <option value="出来高">出来高</option>
+                              <option value="完了金">完了金</option>
+                            </Select>
+                          </Td>
+                          <Td>
+                            <Input
+                              name="scheduledAmount"
+                              type="number"
+                              step="1"
+                              defaultValue={b.scheduledAmount}
+                              className="w-28"
+                            />
+                          </Td>
+                          <Td>{formatCurrency(b.costAllocated)}</Td>
+                          <Td>{formatCurrency(b.grossProfit)}</Td>
+                          <Td>
+                            <StatusBadge status={b.status} />
+                          </Td>
+                          <Td>
+                            <Button type="submit" size="sm" variant="secondary">
+                              更新
+                            </Button>
+                          </Td>
+                        </form>
+                      </>
+                    ) : (
+                      <>
+                        <Td>{b.billingMonth}</Td>
+                        <Td>{b.billingType}</Td>
+                        <Td>{formatCurrency(b.scheduledAmount)}</Td>
+                        <Td>{formatCurrency(b.costAllocated)}</Td>
+                        <Td>{formatCurrency(b.grossProfit)}</Td>
+                        <Td>
+                          <StatusBadge status={b.status} />
+                        </Td>
+                        <Td></Td>
+                      </>
+                    )}
+                    {b.status === "未請求" && !b.invoiceId && (
+                      <Td>
+                        <form action={deleteBillingScheduleAction.bind(null, id, b.id)}>
+                          <Button type="submit" variant="ghost" size="sm">
+                            削除
+                          </Button>
+                        </form>
+                      </Td>
+                    )}
                   </Tr>
                 ))}
               </tbody>
             </Table>
-          ) : (
+          )}
+
+          {billingSchedules.length === 0 ? (
             <form action={createBillingSchedulesAction.bind(null, id)} className="p-5">
               <input type="hidden" name="rowCount" value="5" />
               <div className="space-y-2">
                 {[0, 1, 2, 3, 4].map((i) => (
                   <div key={i} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-                    <Select name={`billingType_${i}`} defaultValue={i === 0 ? "通常" : ""}>
+                    <Select name={`billingType_${i}`} defaultValue={i === 0 ? "出来高" : ""}>
                       <option value="">-</option>
-                      <option value="通常">通常</option>
-                      <option value="着手金">着手金</option>
-                      <option value="中間金">中間金</option>
+                      <option value="出来高">出来高</option>
                       <option value="完了金">完了金</option>
-                      <option value="追加">追加</option>
                     </Select>
                     <Input name={`billingMonth_${i}`} type="month" />
                     <Input name={`scheduledAmount_${i}`} type="number" step="1" placeholder="請求予定額" />
@@ -330,6 +385,23 @@ export default async function EstimateDetailPage({
               <div className="mt-3">
                 <Button type="submit" size="sm">
                   請求予定を作成
+                </Button>
+              </div>
+            </form>
+          ) : (
+            <form action={addBillingScheduleRowAction.bind(null, id)} className="border-t border-gray-100 p-4">
+              <p className="mb-2 text-xs font-medium text-gray-500">
+                行を追加(追加工事はプラス、未使用部材の削減はマイナスの金額で入力してください)
+              </p>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <Select name="billingType" defaultValue="出来高">
+                  <option value="出来高">出来高</option>
+                  <option value="完了金">完了金</option>
+                </Select>
+                <Input name="billingMonth" type="month" />
+                <Input name="scheduledAmount" type="number" step="1" placeholder="金額(マイナス可)" />
+                <Button type="submit" size="sm">
+                  追加
                 </Button>
               </div>
             </form>
