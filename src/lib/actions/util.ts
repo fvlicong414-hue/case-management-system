@@ -21,11 +21,13 @@ export function rethrowIfNextControlFlowError(error: unknown): void {
 export function errorRedirect(path: string, error: unknown): never {
   rethrowIfNextControlFlowError(error);
   const message = error instanceof Error ? error.message : "エラーが発生しました";
-  redirect(`${path}?error=${encodeURIComponent(message)}`);
+  const separator = path.includes("?") ? "&" : "?";
+  redirect(`${path}${separator}error=${encodeURIComponent(message)}`);
 }
 
 export function successRedirect(path: string, message: string): never {
-  redirect(`${path}?success=${encodeURIComponent(message)}`);
+  const separator = path.includes("?") ? "&" : "?";
+  redirect(`${path}${separator}success=${encodeURIComponent(message)}`);
 }
 
 export function getStr(formData: FormData, key: string): string {
