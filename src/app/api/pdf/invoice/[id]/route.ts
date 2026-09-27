@@ -3,6 +3,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { getInvoice, listInvoiceItems } from "@/lib/db/invoices";
 import { getCustomer } from "@/lib/db/customers";
 import { getSettings } from "@/lib/db/settings";
+import { getProject } from "@/lib/db/projects";
 import { requireSession } from "@/lib/auth";
 import { createDocumentLog } from "@/lib/db/documentLogs";
 import { InvoicePdfDocument } from "@/lib/pdf/InvoicePdf";
@@ -16,6 +17,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const items = await listInvoiceItems(id);
   const settings = await getSettings(invoice.tenantId);
 
+  const projectIds = Array.from(new Set(items.map((i) => i.projectId)));
+  const projects = await Promise.all(projectIds.map((pid) => getProject(pid)));
+  const completedDateByProjectId = new Map(projects.map((p) => [p?.id, p?.completedDate ?? null]));
+
   const buffer = await renderToBuffer(
     InvoicePdfDocument({
       invoiceNo: invoice.invoiceNo,
@@ -23,8 +28,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       paymentDueDate: invoice.paymentDueDate?.slice(0, 10),
       customerName: customer?.name ?? "",
       billingName: customer?.billingName,
+      postalCode: customer?.postalCode,
       address: customer?.address,
-      items: items.map((i) => ({ siteName: i.siteName, billingType: i.billingType, amount: i.amount })),
+      items: items.map((i) => ({
+        siteName: i.siteName,
+        billingType: i.billingType,
+        amount: i.amount,
+        completedDate: completedDateByProjectId.get(i.projectId) ?? null,
+      })),
       subtotal: invoice.subtotal,
       taxAmount: invoice.taxAmount,
       totalAmount: invoice.totalAmount,
