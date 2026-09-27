@@ -84,7 +84,13 @@ export function buildInvoiceExcel(input: InvoiceExcelInput): Buffer {
   // 自社情報(登録番号・会社名・住所・電話)
   if (input.company.invoiceRegistrationNumber) setCell(sheet, "AL6", input.company.invoiceRegistrationNumber);
   if (input.company.name) setCell(sheet, "AL7", input.company.name);
-  if (input.company.address) setCell(sheet, "AL8", input.company.address);
+  if (input.company.address) {
+    setCell(sheet, "AL8", input.company.address);
+    // テンプレートに元々入っていた住所の続き(AL9・AL10)は、自社住所を1行にまとめて
+    // AL8へ書き込むこの方式では不要なため、二重表示を防ぐために空にする。
+    setCell(sheet, "AL9", "");
+    setCell(sheet, "AL10", "");
+  }
   if (input.company.phone) setCell(sheet, "AL11", `ＴＥＬ　${input.company.phone}`);
 
   // 得意先情報
