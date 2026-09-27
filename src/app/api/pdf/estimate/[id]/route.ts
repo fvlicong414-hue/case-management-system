@@ -26,6 +26,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       billingName: customer?.billingName,
       projectName: project?.projectName ?? "",
       siteName: project?.siteName,
+      customerContact: project?.customerContact,
       title: estimate.title,
       items: items.map((i) => ({
         itemName: i.itemName,
