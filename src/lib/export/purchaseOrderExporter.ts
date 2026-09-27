@@ -45,8 +45,11 @@ const QUOTE_REQUEST_TEMPLATE: TemplateConfig = {
 };
 
 function setCell(sheet: XLSX.WorkSheet, addr: string, value: string | number) {
-  if (typeof value === "number") sheet[addr] = { t: "n", v: value };
-  else sheet[addr] = { t: "s", v: value };
+  const existing = sheet[addr];
+  const cell: XLSX.CellObject = typeof value === "number" ? { t: "n", v: value } : { t: "s", v: value };
+  if (existing?.s) cell.s = existing.s;
+  if (existing?.z) cell.z = existing.z;
+  sheet[addr] = cell;
 }
 
 function fillTemplate(config: TemplateConfig, input: OrderExcelInput): Buffer {

@@ -32,8 +32,13 @@ export interface InvoiceExcelInput {
 }
 
 function setCell(sheet: XLSX.WorkSheet, addr: string, value: string | number) {
-  if (typeof value === "number") sheet[addr] = { t: "n", v: value };
-  else sheet[addr] = { t: "s", v: value };
+  const existing = sheet[addr];
+  const cell: XLSX.CellObject = typeof value === "number" ? { t: "n", v: value } : { t: "s", v: value };
+  // 元のセルに書式(色・罫線などのスタイル、%表示などの表示形式)が設定されていた場合は、
+  // 値だけ差し替えて書式は維持する(そのまま上書きすると書式が失われてしまうため)。
+  if (existing?.s) cell.s = existing.s;
+  if (existing?.z) cell.z = existing.z;
+  sheet[addr] = cell;
 }
 
 /** 西暦の日付文字列(YYYY-MM-DD)を、令和の年・月・日に変換する(令和1年=2019年)。 */
@@ -101,9 +106,9 @@ export function buildInvoiceExcel(input: InvoiceExcelInput): Buffer {
   });
 
   // 当月ご請求金額・差引合計金額(繰越なしのため同額)、および下部の合計欄
+  // (消費税率のセルはテンプレート側の「10%」表示のままにし、上書きしない)
   setCell(sheet, "AK17", input.totalAmount);
   setCell(sheet, "AV17", input.totalAmount);
-  setCell(sheet, "AO39", TAX_RATE);
   setCell(sheet, "AO40", input.subtotal);
   setCell(sheet, "AO41", input.taxAmount);
   setCell(sheet, "AO42", input.totalAmount);
