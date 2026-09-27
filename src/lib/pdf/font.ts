@@ -1,28 +1,26 @@
 import { Font } from "@react-pdf/renderer";
-import { NOTO_SANS_JP_400_BASE64 } from "./fonts/notoSansJp400";
-import { NOTO_SANS_JP_700_BASE64 } from "./fonts/notoSansJp700";
+import path from "node:path";
 
 let registered = false;
 
 /**
  * PDF生成の最初に1度だけ呼び出す。日本語(Noto Sans JP)フォントを登録する。
  *
- * 以前はファイルパス(node_modules内のwoffファイル)を実行時に読みに行く方式だった。
- * この方式はローカルでは動くが、Vercel(本番環境)ではサーバーレス関数に
- * 使用ファイルとして認識されず、ビルドに含まれないことがあり、これが
- * 本番環境でのみPDF出力が失敗する原因になっていた。
- *
- * 対策として、フォントデータをコードの中に直接(base64のデータURLとして)
- * 埋め込む方式に変更した。ファイルシステムへの依存が一切なくなるため、
- * ローカルでも本番環境でも同じように確実に動作する。
+ * フォントファイル(.woff)はこのフォルダ(src/lib/pdf/fonts/)に直接同梱している。
+ * 以前はnode_modules内のファイルをfs.readFileSyncで実行時に読みに行く方式だったが、
+ * Vercel(本番環境)ではサーバーレス関数に使用ファイルとして認識されず、
+ * ビルドに含まれないことがあった。そのため、next.config.mjsの
+ * outputFileTracingIncludesで、このフォルダを明示的にVercelへ
+ * 同梱するよう指定している(このファイルとnext.config.mjsは対でセット)。
  */
 export function registerJapaneseFont() {
   if (registered) return;
+  const base = path.join(process.cwd(), "src/lib/pdf/fonts");
   Font.register({
     family: "NotoSansJP",
     fonts: [
-      { src: `data:font/woff;base64,${NOTO_SANS_JP_400_BASE64}`, fontWeight: "normal" },
-      { src: `data:font/woff;base64,${NOTO_SANS_JP_700_BASE64}`, fontWeight: "bold" },
+      { src: path.join(base, "noto-sans-jp-400.woff"), fontWeight: "normal" },
+      { src: path.join(base, "noto-sans-jp-700.woff"), fontWeight: "bold" },
     ],
   });
   // react-pdf は日本語のような分かち書きされない文字列を1単語として扱うと
