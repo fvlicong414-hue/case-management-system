@@ -1,0 +1,337 @@
+// ============================================================================
+// 建築業向け 案件・見積・仕様書・請求・粗利・入金管理システム — Prisma Schema
+// ============================================================================
+// 【重要】このファイルは「将来 PostgreSQL / Supabase へ移行するとき用」の
+// 設計図として用意しています。
+//
+// ローカルMVP(現在の版)は、このサンドボックス環境のネットワーク制限により
+// Prisma CLI のエンジンバイナリ (binaries.prisma.sh) を取得できなかったため、
+// 実行時のデータアクセスは Node.js 標準の `node:sqlite` を使った
+// 独自の軽量リポジトリ層(src/lib/db 以下)で実装しています。
+//
+// 永井さんの実際のPC(通常のインターネット接続がある環境)であれば、
+// このファイルはそのまま `npx prisma migrate dev` で使えます。
+// カラム名・テーブル名は src/lib/db の実装と完全に一致させてあるので、
+// 将来 Supabase PostgreSQL へ移行する際は
+//   1. このファイルを使って `npx prisma migrate dev` でテーブルを作成
+//   2. src/lib/db 以下のSQLをPrisma Client呼び出しに置き換え
+// という2ステップで移行できるようにしてあります。
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // 将来は "postgresql" に変更するだけでOKな設計
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  plan      String   @default("standard")
+  status    String   @default("active")
+  memo      String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users            User[]
+  customers        Customer[]
+  projects         Project[]
+  itemMasters      ItemMaster[]
+  estimates        Estimate[]
+  estimateItems    EstimateItem[]
+  specifications   Specification[]
+  billingSchedules BillingSchedule[]
+  invoices         Invoice[]
+  invoiceItems     InvoiceItem[]
+  documentFormats  DocumentFormat[]
+  documentLogs     DocumentLog[]
+  settings         Settings?
+
+  @@map("tenants")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         String
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("users")
+}
+
+model Customer {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  customerCode    String   @map("customer_code")
+  name            String
+  billingName     String?  @map("billing_name")
+  postalCode      String?  @map("postal_code")
+  address         String?
+  phone           String?
+  contactPerson   String?  @map("contact_person")
+  closingDay      String?  @map("closing_day")
+  paymentTerms    String?  @map("payment_terms")
+  invoiceFormatId String?  @map("invoice_format_id")
+  quoteFormatId   String?  @map("quote_format_id")
+  specFormatId    String?  @map("spec_format_id")
+  memo            String?
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id])
+  projects Project[]
+
+  @@map("customers")
+}
+
+model Project {
+  id                 String    @id @default(cuid())
+  tenantId           String    @map("tenant_id")
+  projectCode        String    @map("project_code")
+  customerId         String    @map("customer_id")
+  projectName        String    @map("project_name")
+  siteName           String?   @map("site_name")
+  siteAddress        String?   @map("site_address")
+  internalOwnerId    String?   @map("internal_owner_id")
+  customerContact    String?   @map("customer_contact")
+  workCategory       String?   @map("work_category")
+  status             String    @default("見積中")
+  startPlanDate      DateTime? @map("start_plan_date")
+  completionPlanDate DateTime? @map("completion_plan_date")
+  completedDate      DateTime? @map("completed_date")
+  memo               String?
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  tenant   Tenant   @relation(fields: [tenantId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@map("projects")
+}
+
+model ItemMaster {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  itemCode          String   @map("item_code")
+  name              String
+  specification     String?
+  unit              String?
+  defaultSalesPrice Float    @default(0) @map("default_sales_price")
+  defaultCostPrice  Float    @default(0) @map("default_cost_price")
+  category          String?
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("item_master")
+}
+
+model Estimate {
+  id                 String   @id @default(cuid())
+  tenantId           String   @map("tenant_id")
+  estimateNo         String   @map("estimate_no")
+  projectId          String   @map("project_id")
+  customerId         String   @map("customer_id")
+  estimateDate       DateTime @map("estimate_date")
+  title              String?
+  status             String   @default("作成中")
+  version            Int      @default(1)
+  originalEstimateId String?  @map("original_estimate_id")
+  salesTotal         Float    @default(0) @map("sales_total")
+  costTotal          Float    @default(0) @map("cost_total")
+  grossProfit        Float    @default(0) @map("gross_profit")
+  grossProfitRate    Float    @default(0) @map("gross_profit_rate")
+  overheadRate       Float    @default(0) @map("overhead_rate")
+  overheadAmount     Float    @default(0) @map("overhead_amount")
+  operatingProfit    Float    @default(0) @map("operating_profit")
+  taxAmount          Float    @default(0) @map("tax_amount")
+  totalWithTax       Float    @default(0) @map("total_with_tax")
+  memo               String?
+  createdBy          String?  @map("created_by")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("estimates")
+}
+
+model EstimateItem {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  estimateId     String   @map("estimate_id")
+  itemMasterId   String?  @map("item_master_id")
+  itemName       String   @map("item_name")
+  specification  String?
+  quantity       Float    @default(1)
+  unit           String?
+  salesUnitPrice Float    @default(0) @map("sales_unit_price")
+  salesAmount    Float    @default(0) @map("sales_amount")
+  costUnitPrice  Float    @default(0) @map("cost_unit_price")
+  costAmount     Float    @default(0) @map("cost_amount")
+  grossProfit    Float    @default(0) @map("gross_profit")
+  memo           String?
+  sortOrder      Int      @default(0) @map("sort_order")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("estimate_items")
+}
+
+model Specification {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  estimateId        String   @map("estimate_id")
+  projectId         String   @map("project_id")
+  constructionScope String?  @map("construction_scope")
+  materials         String?
+  method            String?
+  notes             String?
+  warranty          String?
+  status            String   @default("作成中")
+  pdfPath           String?  @map("pdf_path")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("specifications")
+}
+
+model BillingSchedule {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  estimateId      String   @map("estimate_id")
+  projectId       String   @map("project_id")
+  customerId      String   @map("customer_id")
+  billingMonth    String   @map("billing_month")
+  billingType     String   @map("billing_type")
+  scheduledAmount Float    @map("scheduled_amount")
+  costAllocated   Float    @default(0) @map("cost_allocated")
+  grossProfit     Float    @default(0) @map("gross_profit")
+  status          String   @default("未請求")
+  invoiceId       String?  @map("invoice_id")
+  memo            String?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("billing_schedules")
+}
+
+model Invoice {
+  id                String    @id @default(cuid())
+  tenantId          String    @map("tenant_id")
+  invoiceNo         String    @map("invoice_no")
+  customerId        String    @map("customer_id")
+  billingMonth      String    @map("billing_month")
+  invoiceDate       DateTime  @map("invoice_date")
+  paymentDueDate    DateTime? @map("payment_due_date")
+  subtotal          Float     @default(0)
+  taxAmount         Float     @default(0) @map("tax_amount")
+  totalAmount       Float     @default(0) @map("total_amount")
+  costTotal         Float     @default(0) @map("cost_total")
+  grossProfit       Float     @default(0) @map("gross_profit")
+  overheadAmount    Float     @default(0) @map("overhead_amount")
+  operatingProfit   Float     @default(0) @map("operating_profit")
+  status            String    @default("下書き")
+  paidDate          DateTime? @map("paid_date")
+  pdfPath           String?   @map("pdf_path")
+  canceledInvoiceId String?   @map("canceled_invoice_id")
+  createdBy         String?   @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                String   @id @default(cuid())
+  tenantId          String   @map("tenant_id")
+  invoiceId         String   @map("invoice_id")
+  billingScheduleId String   @map("billing_schedule_id")
+  projectId         String   @map("project_id")
+  siteName          String?  @map("site_name")
+  billingType       String   @map("billing_type")
+  amount            Float
+  sortOrder         Int      @default(0) @map("sort_order")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("invoice_items")
+}
+
+model DocumentFormat {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  name         String
+  documentType String   @map("document_type")
+  templateFile String?  @map("template_file")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("document_formats")
+}
+
+model DocumentLog {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  documentType String   @map("document_type")
+  targetId     String   @map("target_id")
+  pdfPath      String?  @map("pdf_path")
+  fileName     String   @map("file_name")
+  outputBy     String?  @map("output_by")
+  outputAt     DateTime @default(now()) @map("output_at")
+  status       String   @default("出力済")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("document_logs")
+}
+
+model Settings {
+  id                               String   @id @default(cuid())
+  tenantId                         String   @unique @map("tenant_id")
+  taxRate                          Float    @default(0.10) @map("tax_rate")
+  overheadRate                     Float    @default(0.0) @map("overhead_rate")
+  invoiceNumberPrefix              String   @default("INV-") @map("invoice_number_prefix")
+  estimateNumberPrefix             String   @default("EST-") @map("estimate_number_prefix")
+  projectNumberPrefix              String   @default("PRJ-") @map("project_number_prefix")
+  companyName                      String?  @map("company_name")
+  companyPostalCode                String?  @map("company_postal_code")
+  companyAddress                   String?  @map("company_address")
+  companyPhone                     String?  @map("company_phone")
+  companyInvoiceRegistrationNumber String?  @map("company_invoice_registration_number")
+  bankInfo                         String?  @map("bank_info")
+  sealImagePath                    String?  @map("seal_image_path")
+  createdAt                        DateTime @default(now()) @map("created_at")
+  updatedAt                        DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("settings")
+}
