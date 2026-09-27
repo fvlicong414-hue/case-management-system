@@ -1,13 +1,15 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // 日本語フォント(PDF出力用)は、以前はfs.readFileSyncで実行時に読み込む方式で、
-    // ここでVercelへの明示的な同梱指定をしていたが、本番環境で依然として
-    // 反映されない問題があったため、フォント自体をコードに直接埋め込む方式に変更した
-    // (src/lib/pdf/font.ts 参照)。そのためフォント分の指定はここでは不要になった。
-    // Excelテンプレート(Excel出力用)は引き続きファイル読み込み方式のため、
+    // 日本語フォント(PDF出力用、src/lib/pdf/fonts/内)とExcelテンプレート(Excel出力用)は、
+    // fs.readFileSyncで実行時に読み込む静的資産のため、
     // Vercelのサーバーレス関数バンドルに確実に含まれるようにする。
+    // これを入れないと、ローカルでは動くのに本番(Vercel)でだけ
+    // 「ファイルが見つからない」エラーになることがある。
     outputFileTracingIncludes: {
+      "/api/pdf/estimate/[id]/route": ["./src/lib/pdf/fonts/**"],
+      "/api/pdf/invoice/[id]/route": ["./src/lib/pdf/fonts/**"],
+      "/api/pdf/specification/[id]/route": ["./src/lib/pdf/fonts/**"],
       "/api/excel/estimate-package/[id]/route": ["./src/lib/export/templates/**"],
       "/api/excel/purchase-order/[id]/route": ["./src/lib/export/templates/**"],
     },
