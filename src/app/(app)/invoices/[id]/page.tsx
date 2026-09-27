@@ -44,6 +44,11 @@ export default async function InvoiceDetailPage({
               請求書PDF再出力
             </Button>
           </a>
+          <a href={`/api/excel/invoice/${id}`}>
+            <Button type="button" variant="secondary" size="sm">
+              請求書Excel出力
+            </Button>
+          </a>
           {invoice.status === "発行済" && (
             <form action={markInvoiceSentAction.bind(null, id)}>
               <Button type="submit" size="sm">

@@ -207,6 +207,7 @@ export async function importEstimateFromExcelAction(formData: FormData) {
     await markEstimateOrdered(estimate.id);
 
     revalidatePath("/estimates");
+    revalidatePath(`/estimates/${estimate.id}`);
     redirect(
       `/estimates/${estimate.id}?success=${encodeURIComponent(
         `Excelから見積を作成し、受注まで自動で進めました(明細${parsed.items.length}件)。原価単価は0円のため、確認・修正してください。`

@@ -13,7 +13,8 @@ export default async function InvoicesPage({
   searchParams: Promise<{
     invoiceNo?: string;
     customerName?: string;
-    billingMonth?: string;
+    billingMonthFrom?: string;
+    billingMonthTo?: string;
     status?: string;
     paidDateFrom?: string;
     paidDateTo?: string;
@@ -28,10 +29,17 @@ export default async function InvoicesPage({
       <PageHeader title="請求書管理" subtitle={`${invoices.length}件`} actions={<LinkButton href="/invoices/new">+ 月次請求作成</LinkButton>} />
 
       <Card className="mb-4">
-        <form className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-5">
+        <form className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-6">
           <Input name="invoiceNo" placeholder="請求番号" defaultValue={sp.invoiceNo} />
-          <Input name="customerName" placeholder="顧客名" defaultValue={sp.customerName} />
-          <Input name="billingMonth" type="month" defaultValue={sp.billingMonth} />
+          <Input name="customerName" placeholder="会社名" defaultValue={sp.customerName} />
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">期間(開始月)</label>
+            <Input name="billingMonthFrom" type="month" defaultValue={sp.billingMonthFrom} />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs text-gray-500">期間(終了月)</label>
+            <Input name="billingMonthTo" type="month" defaultValue={sp.billingMonthTo} />
+          </div>
           <Select name="status" defaultValue={sp.status ?? ""}>
             <option value="">すべてのステータス</option>
             {STATUS_OPTIONS.map((s) => (
@@ -42,7 +50,7 @@ export default async function InvoicesPage({
           </Select>
           <div>
             <Button type="submit" size="sm">
-              検索
+              検索(会社名+期間の組み合わせ可)
             </Button>
           </div>
         </form>

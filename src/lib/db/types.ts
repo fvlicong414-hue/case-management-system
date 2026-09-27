@@ -233,7 +233,7 @@ export interface DocumentFormat {
   updatedAt: string;
 }
 
-export type DocumentLogType = "見積書" | "仕様書" | "請求書" | "手配書・指示書";
+export type DocumentLogType = "見積書" | "仕様書" | "請求書" | "手配書・指示書" | "請求書(Excel)";
 export type DocumentLogStatus = "出力済" | "取消" | "再発行";
 
 export interface DocumentLog {

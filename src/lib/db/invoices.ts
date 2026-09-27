@@ -36,7 +36,8 @@ export async function listInvoiceItems(invoiceId: string): Promise<InvoiceItem[]
 export interface InvoiceSearch {
   invoiceNo?: string;
   customerName?: string;
-  billingMonth?: string;
+  billingMonthFrom?: string;
+  billingMonthTo?: string;
   status?: string;
   paidDateFrom?: string;
   paidDateTo?: string;
@@ -59,9 +60,13 @@ export async function listInvoices(
     clauses.push(`c.name ILIKE $${i++}`);
     params.push(`%${search.customerName}%`);
   }
-  if (search.billingMonth) {
-    clauses.push(`i.billing_month = $${i++}`);
-    params.push(search.billingMonth);
+  if (search.billingMonthFrom) {
+    clauses.push(`i.billing_month >= $${i++}`);
+    params.push(search.billingMonthFrom);
+  }
+  if (search.billingMonthTo) {
+    clauses.push(`i.billing_month <= $${i++}`);
+    params.push(search.billingMonthTo);
   }
   if (search.status) {
     clauses.push(`i.status = $${i++}`);
