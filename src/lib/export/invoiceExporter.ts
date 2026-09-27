@@ -1,7 +1,7 @@
 import * as XLSX from "xlsx";
 
 export interface InvoiceExcelItem {
-  siteName: string;
+  siteName: string | null;
   billingType: string;
   amount: number;
 }
@@ -49,7 +49,7 @@ export function buildInvoiceExcel(input: InvoiceExcelInput): Buffer {
 
   const itemStartRow = rows.length; // 0-indexed。この後のitems行の開始位置
   for (const item of input.items) {
-    rows.push([item.siteName, item.billingType, item.amount]);
+    rows.push([item.siteName ?? "", item.billingType, item.amount]);
   }
 
   rows.push([]);
