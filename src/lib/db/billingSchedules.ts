@@ -54,7 +54,7 @@ export async function listBillingSchedules(
     LEFT JOIN projects p ON p.id = b.project_id
     LEFT JOIN estimates e ON e.id = b.estimate_id
     WHERE ${clauses.join(" AND ")}
-    ORDER BY b.billing_month ASC, b.created_at ASC`;
+    ORDER BY b.billing_month DESC, b.created_at DESC`;
   return query(sql, params);
 }
 
@@ -77,7 +77,7 @@ export async function listUnbilledSchedules(
     LEFT JOIN estimates e ON e.id = b.estimate_id
     WHERE b.tenant_id = $1 AND b.customer_id = $2 AND b.billing_month <= $3 AND b.status = '未請求'
       AND b.invoice_id IS NULL
-    ORDER BY b.billing_month ASC, p.project_name ASC`;
+    ORDER BY b.billing_month DESC, p.project_name ASC`;
   return query(sql, [tenantId, customerId, billingMonth]);
 }
 
