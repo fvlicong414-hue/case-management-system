@@ -286,7 +286,7 @@ export async function autoCreateBillingSchedulesForProject(
     const result = await createBillingSchedules(
       {
         estimateId: est.id,
-        schedules: [{ billingType: "出来高", billingMonth: currentMonth, scheduledAmount: est.salesTotal }],
+        schedules: [{ billingType: "完了金", billingMonth: currentMonth, scheduledAmount: est.salesTotal }],
       },
       { allowMismatch: true }
     );

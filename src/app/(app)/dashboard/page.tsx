@@ -148,7 +148,7 @@ export default async function DashboardPage() {
         </Card>
 
         <Card>
-          <CardHeader title="直近の見積" actions={<Link href="/estimates" className="text-xs text-navy hover:underline">すべて見る</Link>} />
+          <CardHeader title="直近の見積" actions={<Link href="/projects" className="text-xs text-navy hover:underline">案件一覧を見る</Link>} />
           {data.recentEstimates.length === 0 ? (
             <EmptyState>見積がまだありません</EmptyState>
           ) : (
@@ -165,7 +165,7 @@ export default async function DashboardPage() {
                 {data.recentEstimates.map((e) => (
                   <Tr key={e.id}>
                     <Td>
-                      <Link href={`/estimates/${e.id}`} className="text-navy hover:underline">
+                      <Link href={`/projects/${e.projectId}`} className="text-navy hover:underline">
                         {e.estimateNo}
                       </Link>
                     </Td>

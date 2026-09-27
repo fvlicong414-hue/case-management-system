@@ -49,15 +49,23 @@ export function parseStandardEstimateExcel(buffer: Buffer, sheetName?: string): 
     const unit = cellValue(sheet, `G${row}`);
     const unitPrice = cellValue(sheet, `H${row}`);
     const amount = cellValue(sheet, `I${row}`);
+
+    // 品名だけがあり、数量・単位・単価・金額のいずれも入っていない行は、
+    // 明細行ではなく「見出し(グループ名)」の記載とみなしてスキップする。
+    // (例:「ハンドルボックス・フェース・ワイヤー取替」のような、内訳の先頭に置かれる説明書き)
+    const hasAnyValue = isNumber(quantity) || isNonEmptyString(unit) || isNumber(unitPrice) || isNumber(amount);
+    if (!hasAnyValue) continue;
+
     const qty = isNumber(quantity) ? quantity : 1;
 
     // 単価欄(H列)が入っていればそれを使う。単価欄が空でも、内訳書を別途使う運用の
     // 見積書では金額欄(I列)に合計金額だけが入っていることがあるため、その場合は
     // 金額÷数量で単価を逆算する(金額の再現性を優先し、四捨五入等の誤差は生じさせない)。
+    // 値引き行のようにマイナスの金額もそのまま扱う(0円だけを「未入力」とみなす)。
     let salesUnitPrice = 0;
-    if (isNumber(unitPrice) && unitPrice > 0) {
+    if (isNumber(unitPrice) && unitPrice !== 0) {
       salesUnitPrice = unitPrice;
-    } else if (isNumber(amount) && amount > 0 && qty > 0) {
+    } else if (isNumber(amount) && amount !== 0 && qty !== 0) {
       salesUnitPrice = amount / qty;
     }
 
@@ -79,4 +87,30 @@ export function parseStandardEstimateExcel(buffer: Buffer, sheetName?: string): 
 export function listSheetNames(buffer: Buffer): string[] {
   const workbook = XLSX.read(buffer, { type: "buffer" });
   return workbook.SheetNames;
+}
+
+export interface DetectedEstimateSheet {
+  sheetName: string;
+  parsed: ParsedEstimate;
+}
+
+/**
+ * ワークブック内の全シートを順番に試し、実際に明細が読み取れた最初のシートを採用する。
+ * 同じ様式の見本・空欄タブ(1枚目など)が混ざっていても、実際にデータが入っている
+ * シートを自動的に見つけられるようにするため、シート名を人が手入力する必要をなくした。
+ */
+export function findBestEstimateSheet(buffer: Buffer): DetectedEstimateSheet {
+  const names = listSheetNames(buffer);
+  for (const name of names) {
+    let parsed: ParsedEstimate;
+    try {
+      parsed = parseStandardEstimateExcel(buffer, name);
+    } catch {
+      continue;
+    }
+    if (parsed.items.length > 0) {
+      return { sheetName: name, parsed };
+    }
+  }
+  throw new Error("Excel内に、見積の明細(品名・数量・金額など)が入力されたシートが見つかりませんでした。");
 }

@@ -3,8 +3,17 @@
 import { revalidatePath } from "next/cache";
 import { requireSession, can } from "@/lib/auth";
 import { createBillingSchedules, updateBillingScheduleCost, addSingleBillingSchedule, updateBillingScheduleAmount, deleteBillingSchedule } from "@/lib/db/billingSchedules";
+import { getEstimate } from "@/lib/db/estimates";
 import { getStr, getNumber, errorRedirect, successRedirect } from "./util";
 import type { BillingType } from "@/lib/db/types";
+
+// 請求予定は見積の詳細ページではなく、案件詳細ページ(/projects/[id])に統合されているため、
+// 各操作後は、その見積が属する案件のページに戻す。
+
+async function projectPathForEstimate(estimateId: string): Promise<string> {
+  const estimate = await getEstimate(estimateId);
+  return estimate ? `/projects/${estimate.projectId}` : "/projects";
+}
 
 /**
  * フォームからは以下の形式で複数行を受け取る想定:
@@ -12,6 +21,7 @@ import type { BillingType } from "@/lib/db/types";
  */
 export async function createBillingSchedulesAction(estimateId: string, formData: FormData) {
   const session = await requireSession();
+  const projectPath = await projectPathForEstimate(estimateId);
   const rowCount = getNumber(formData, "rowCount", 1);
   const schedules: { billingType: BillingType; billingMonth: string; scheduledAmount: number; memo?: string }[] = [];
   for (let i = 0; i < rowCount; i++) {
@@ -25,13 +35,13 @@ export async function createBillingSchedulesAction(estimateId: string, formData:
   try {
     const result = await createBillingSchedules({ estimateId, schedules }, { allowMismatch });
     revalidatePath("/billing-schedules");
-    revalidatePath(`/estimates/${estimateId}`);
+    revalidatePath(projectPath);
     if (result.warning) {
-      successRedirect(`/estimates/${estimateId}`, `請求予定を作成しました(注意: ${result.warning})`);
+      successRedirect(projectPath, `請求予定を作成しました(注意: ${result.warning})`);
     }
-    successRedirect(`/estimates/${estimateId}`, "請求予定を作成しました");
+    successRedirect(projectPath, "請求予定を作成しました");
   } catch (e) {
-    errorRedirect(`/estimates/${estimateId}`, e);
+    errorRedirect(projectPath, e);
   }
 }
 
@@ -50,6 +60,7 @@ export async function updateBillingScheduleCostAction(id: string, formData: Form
 /** 既存の請求予定に、追加工事(+)や削減(-)の調整行を1件追加する */
 export async function addBillingScheduleRowAction(estimateId: string, formData: FormData) {
   await requireSession();
+  const projectPath = await projectPathForEstimate(estimateId);
   try {
     const billingType = getStr(formData, "billingType") as BillingType;
     const billingMonth = getStr(formData, "billingMonth");
@@ -58,35 +69,37 @@ export async function addBillingScheduleRowAction(estimateId: string, formData: 
       throw new Error("区分・請求月・金額(0円以外)を入力してください");
     }
     await addSingleBillingSchedule(estimateId, { billingType, billingMonth, scheduledAmount });
-    revalidatePath(`/estimates/${estimateId}`);
-    successRedirect(`/estimates/${estimateId}`, "請求予定に行を追加しました");
+    revalidatePath(projectPath);
+    successRedirect(projectPath, "請求予定に行を追加しました");
   } catch (e) {
-    errorRedirect(`/estimates/${estimateId}`, e);
+    errorRedirect(projectPath, e);
   }
 }
 
 export async function editBillingScheduleAction(estimateId: string, scheduleId: string, formData: FormData) {
   await requireSession();
+  const projectPath = await projectPathForEstimate(estimateId);
   try {
     await updateBillingScheduleAmount(scheduleId, {
       billingType: getStr(formData, "billingType") as BillingType,
       billingMonth: getStr(formData, "billingMonth"),
       scheduledAmount: getNumber(formData, "scheduledAmount", 0),
     });
-    revalidatePath(`/estimates/${estimateId}`);
-    successRedirect(`/estimates/${estimateId}`, "請求予定を更新しました");
+    revalidatePath(projectPath);
+    successRedirect(projectPath, "請求予定を更新しました");
   } catch (e) {
-    errorRedirect(`/estimates/${estimateId}`, e);
+    errorRedirect(projectPath, e);
   }
 }
 
 export async function deleteBillingScheduleAction(estimateId: string, scheduleId: string) {
   await requireSession();
+  const projectPath = await projectPathForEstimate(estimateId);
   try {
     await deleteBillingSchedule(scheduleId);
-    revalidatePath(`/estimates/${estimateId}`);
-    successRedirect(`/estimates/${estimateId}`, "請求予定を削除しました");
+    revalidatePath(projectPath);
+    successRedirect(projectPath, "請求予定を削除しました");
   } catch (e) {
-    errorRedirect(`/estimates/${estimateId}`, e);
+    errorRedirect(projectPath, e);
   }
 }

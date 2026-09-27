@@ -17,7 +17,7 @@ export interface DashboardData {
   unpaidCustomers: { customerId: string; customerName: string; unpaidAmount: number; invoiceCount: number }[];
   overdueInvoices: { id: string; invoiceNo: string; customerName: string; totalAmount: number; paymentDueDate: string }[];
   lowMarginProjects: { id: string; projectName: string; customerName: string; grossProfitRate: number; salesTotal: number }[];
-  recentEstimates: { id: string; estimateNo: string; customerName: string; salesTotal: number; status: string; estimateDate: string }[];
+  recentEstimates: { id: string; projectId: string; estimateNo: string; customerName: string; salesTotal: number; status: string; estimateDate: string }[];
   recentInvoices: { id: string; invoiceNo: string; customerName: string; totalAmount: number; status: string; invoiceDate: string }[];
 }
 
@@ -129,7 +129,7 @@ export async function getDashboardData(tenantId: string): Promise<DashboardData>
   );
 
   const recentEstimates = await query(
-    `SELECT e.id, e.estimate_no as "estimateNo", c.name as "customerName", e.sales_total as "salesTotal",
+    `SELECT e.id, e.project_id as "projectId", e.estimate_no as "estimateNo", c.name as "customerName", e.sales_total as "salesTotal",
       e.status, e.estimate_date as "estimateDate"
      FROM estimates e LEFT JOIN customers c ON c.id = e.customer_id
      WHERE e.tenant_id = $1 ORDER BY e.created_at DESC LIMIT 5`,
