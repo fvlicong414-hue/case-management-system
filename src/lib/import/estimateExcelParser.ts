@@ -1,8 +1,9 @@
 import * as XLSX from "xlsx";
 
 const ITEM_START_ROW = 21;
-const ITEM_MAX_ROWS = 23;
-const SPEC_ROWS = [46, 47];
+// 「合計」の行が見つからない壊れたファイルでも無限ループにならないための安全上限。
+// 実運用でここまで大きな見積は想定していないが、上限自体は今後さらに増やせる。
+const ITEM_ROW_SAFETY_LIMIT = 500;
 
 export interface ParsedEstimateItem {
   itemName: string;
@@ -32,6 +33,10 @@ function isNumber(v: unknown): v is number {
  * 標準見積書フォーマット(修理/新規と同形式)のExcelから、工事名・明細・仕様条件を読み取る。
  * 明細1行目に「工事内容+品目名」をまとめて入力する運用(例:「SL300外倒し窓一箇所修繕」)にも
  * そのまま対応する(品目名として1つの文字列で読み取るだけのため、特別な処理は不要)。
+ *
+ * 明細の行数は固定せず、F列に「合計」という文字が現れる行の手前までを明細として読み取る。
+ * これにより、Excel側で行を増やして品目を50件・100件と書いた場合でも、コードを変更せずに
+ * そのまま対応できる(「合計」の行自体もその分下にずれるだけのため)。
  */
 export function parseStandardEstimateExcel(buffer: Buffer, sheetName?: string): ParsedEstimate {
   const workbook = XLSX.read(buffer, { type: "buffer" });
@@ -41,8 +46,15 @@ export function parseStandardEstimateExcel(buffer: Buffer, sheetName?: string): 
 
   const title = cellValue(sheet, "B12");
   const items: ParsedEstimateItem[] = [];
-  for (let i = 0; i < ITEM_MAX_ROWS; i++) {
-    const row = ITEM_START_ROW + i;
+  let totalRow: number | null = null;
+
+  for (let row = ITEM_START_ROW; row < ITEM_START_ROW + ITEM_ROW_SAFETY_LIMIT; row++) {
+    const totalMarker = cellValue(sheet, `F${row}`);
+    if (typeof totalMarker === "string" && totalMarker.trim() === "合計") {
+      totalRow = row;
+      break;
+    }
+
     const name = cellValue(sheet, `B${row}`);
     if (!isNonEmptyString(name)) continue;
     const quantity = cellValue(sheet, `F${row}`);
@@ -76,7 +88,17 @@ export function parseStandardEstimateExcel(buffer: Buffer, sheetName?: string): 
       salesUnitPrice,
     });
   }
-  const memoLines = SPEC_ROWS.map((r) => cellValue(sheet, `A${r}`)).filter(isNonEmptyString);
+
+  // 仕様条件のメモは「合計」の行より下、数行以内に書かれている想定で、空でない行を拾う
+  // (「合計」行が見つからなかった場合はメモの読み取りをスキップする)。
+  const memoLines: string[] = [];
+  if (totalRow !== null) {
+    for (let r = totalRow + 1; r <= totalRow + 5; r++) {
+      const v = cellValue(sheet, `A${r}`);
+      if (isNonEmptyString(v)) memoLines.push(v.trim());
+    }
+  }
+
   return {
     title: isNonEmptyString(title) ? title.trim() : null,
     memo: memoLines.length > 0 ? memoLines.join("\n") : null,

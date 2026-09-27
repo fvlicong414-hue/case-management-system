@@ -1,23 +1,28 @@
 import * as XLSX from "xlsx";
+import fs from "node:fs";
+import path from "node:path";
+
+const TEMPLATE_PATH = path.join(process.cwd(), "src/lib/export/templates/invoice_template.xlsx");
+const SHEET_NAME = "月末";
 
 export interface InvoiceExcelItem {
   siteName: string | null;
   billingType: string;
   amount: number;
+  /** その項目に紐づく案件の完了日(分かる場合のみ。「納品月日」欄に使う) */
+  completedDate?: string | null;
 }
 
 export interface InvoiceExcelInput {
-  invoiceNo: string;
   invoiceDate?: string | null;
-  paymentDueDate?: string | null;
   customerName: string;
   billingName?: string | null;
+  postalCode?: string | null;
   address?: string | null;
   items: InvoiceExcelItem[];
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
-  bankInfo?: string | null;
   company: {
     name?: string | null;
     address?: string | null;
@@ -26,64 +31,82 @@ export interface InvoiceExcelInput {
   };
 }
 
+function setCell(sheet: XLSX.WorkSheet, addr: string, value: string | number) {
+  if (typeof value === "number") sheet[addr] = { t: "n", v: value };
+  else sheet[addr] = { t: "s", v: value };
+}
+
+/** 西暦の日付文字列(YYYY-MM-DD)を、令和の年・月・日に変換する(令和1年=2019年)。 */
+function toReiwa(dateStr: string): { year: number; month: number; day: number } {
+  const d = new Date(dateStr);
+  return { year: d.getFullYear() - 2018, month: d.getMonth() + 1, day: d.getDate() };
+}
+
+function formatDeliveryDate(dateStr?: string | null): string {
+  if (!dateStr) return "";
+  const { year, month, day } = toReiwa(dateStr);
+  return `R${year}.${month}.${day}`;
+}
+
+const ITEM_START_ROW = 20;
+const ITEM_MAX_ROWS = 18; // テンプレートの明細欄(20〜37行目)に収まる件数
+const TAX_RATE = 0.1;
+
 /**
- * 請求書をExcelファイルとして出力する。
- * PDF出力と違い、決まったテンプレートファイルを読み込むのではなく、
- * この関数の中でシートを組み立てる方式にしている。ファイルの読み込みに
- * 依存しないため、本番環境(Vercel)でファイルが見つからない、という
- * 種類の不具合が起こり得ない(PDF出力で発生したのと同種の問題を、
- * 構造的に避けている)。
+ * 請求書を、中部システム工業株式会社指定のExcelフォーマット(テンプレート)に
+ * 反映して出力する。テンプレートの見た目(罫線・書式)を保つため、値を書き込む
+ * セルだけをピンポイントで置き換える(発注書Excel出力と同じ仕組み)。
+ *
+ * 「先月残高」「当月入金額」「繰越残高」は、月をまたいだ入出金を追跡する仕組みが
+ * このシステムにまだ無いため、今回は空欄のままにしている(手入力を想定)。
+ * また、明細の「御担当者」欄(現場担当の社員名)も、対応するデータが現時点で
+ * ないため空欄のままにしている。
  */
 export function buildInvoiceExcel(input: InvoiceExcelInput): Buffer {
-  const rows: (string | number | null)[][] = [];
+  const templateBuffer = fs.readFileSync(TEMPLATE_PATH);
+  const workbook = XLSX.read(templateBuffer, { type: "buffer", cellStyles: true });
+  const sheet = workbook.Sheets[SHEET_NAME];
+  if (!sheet) throw new Error(`請求書テンプレートにシート「${SHEET_NAME}」が見つかりません`);
 
-  rows.push(["請求書"]);
-  rows.push([]);
-  rows.push([`${input.billingName ?? input.customerName} 御中`]);
-  rows.push([]);
-  rows.push(["請求書番号", input.invoiceNo]);
-  rows.push(["請求日", input.invoiceDate ?? ""]);
-  rows.push(["お支払期限", input.paymentDueDate ?? ""]);
-  rows.push([]);
-  rows.push(["現場名", "区分", "金額"]);
-
-  const itemStartRow = rows.length; // 0-indexed。この後のitems行の開始位置
-  for (const item of input.items) {
-    rows.push([item.siteName ?? "", item.billingType, item.amount]);
+  // 発行日(令和表記)
+  if (input.invoiceDate) {
+    const { year, month, day } = toReiwa(input.invoiceDate);
+    setCell(sheet, "AO5", year);
+    setCell(sheet, "AW5", month);
+    setCell(sheet, "AY5", day);
   }
 
-  rows.push([]);
-  rows.push(["", "税抜合計", input.subtotal]);
-  rows.push(["", "消費税", input.taxAmount]);
-  rows.push(["", "税込合計", input.totalAmount]);
-  rows.push([]);
+  // 自社情報(登録番号・会社名・住所・電話)
+  if (input.company.invoiceRegistrationNumber) setCell(sheet, "AL6", input.company.invoiceRegistrationNumber);
+  if (input.company.name) setCell(sheet, "AL7", input.company.name);
+  if (input.company.address) setCell(sheet, "AL8", input.company.address);
+  if (input.company.phone) setCell(sheet, "AL11", `ＴＥＬ　${input.company.phone}`);
 
-  if (input.bankInfo) {
-    rows.push(["お振込先"]);
-    for (const line of input.bankInfo.split("\n")) rows.push([line]);
-    rows.push([]);
-  }
+  // 得意先情報
+  setCell(sheet, "I4", `〒${input.postalCode ?? ""}`);
+  if (input.address) setCell(sheet, "I6", input.address);
+  setCell(sheet, "I8", `${input.billingName ?? input.customerName}　御中`);
 
-  rows.push([input.company.name ?? ""]);
-  if (input.company.address) rows.push([input.company.address]);
-  if (input.company.phone) rows.push([`TEL: ${input.company.phone}`]);
-  if (input.company.invoiceRegistrationNumber) {
-    rows.push([`登録番号: ${input.company.invoiceRegistrationNumber}`]);
-  }
+  // 明細(テンプレートの20〜37行目、最大18件)
+  input.items.slice(0, ITEM_MAX_ROWS).forEach((item, idx) => {
+    const row = ITEM_START_ROW + idx;
+    if (item.completedDate) setCell(sheet, `A${row}`, formatDeliveryDate(item.completedDate));
+    if (item.siteName) setCell(sheet, `M${row}`, item.siteName);
+    setCell(sheet, `AG${row}`, 1);
+    setCell(sheet, `AK${row}`, "式");
+    setCell(sheet, `AO${row}`, item.amount);
+    const lineTax = Math.round(item.amount * TAX_RATE);
+    setCell(sheet, `AU${row}`, lineTax);
+    setCell(sheet, `BA${row}`, item.amount + lineTax);
+  });
 
-  const sheet = XLSX.utils.aoa_to_sheet(rows);
+  // 当月ご請求金額・差引合計金額(繰越なしのため同額)、および下部の合計欄
+  setCell(sheet, "AK17", input.totalAmount);
+  setCell(sheet, "AV17", input.totalAmount);
+  setCell(sheet, "AO39", TAX_RATE);
+  setCell(sheet, "AO40", input.subtotal);
+  setCell(sheet, "AO41", input.taxAmount);
+  setCell(sheet, "AO42", input.totalAmount);
 
-  // 金額の列(C列)に3桁区切りの表示形式を設定する
-  const amountCol = 2; // C列(0始まり)
-  for (let i = itemStartRow; i < itemStartRow + input.items.length; i++) {
-    const addr = XLSX.utils.encode_cell({ r: i, c: amountCol });
-    if (sheet[addr]) sheet[addr].z = "#,##0";
-  }
-
-  sheet["!cols"] = [{ wch: 28 }, { wch: 14 }, { wch: 14 }];
-
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "請求書");
-  const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
-  return buffer as Buffer;
+  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }

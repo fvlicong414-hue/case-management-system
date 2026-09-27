@@ -14,7 +14,7 @@ export async function getBillingSchedule(id: string): Promise<BillingSchedule | 
 
 export async function listBillingSchedulesByEstimate(estimateId: string): Promise<BillingSchedule[]> {
   return query<BillingSchedule>(
-    `SELECT ${COLS} FROM billing_schedules WHERE estimate_id = $1 ORDER BY billing_month ASC`,
+    `SELECT ${COLS} FROM billing_schedules WHERE estimate_id = $1 ORDER BY billing_month DESC, created_at DESC`,
     [estimateId]
   );
 }

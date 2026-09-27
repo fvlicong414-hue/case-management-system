@@ -19,7 +19,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { ProjectStatus } from "@/lib/db/types";
 
-const STATUS_FLOW: ProjectStatus[] = ["見積中", "受注", "施工中", "完了", "請求中", "入金済"];
+const STATUS_FLOW: ProjectStatus[] = ["完了", "請求中", "入金済"];
 
 export default async function ProjectDetailPage({
   params,
