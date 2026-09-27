@@ -46,6 +46,7 @@ export interface EstimatePdfProps {
   billingName?: string | null;
   projectName: string;
   siteName?: string | null;
+  customerContact?: string | null;
   title?: string | null;
   items: { itemName: string; specification?: string | null; quantity: number; unit?: string | null; salesUnitPrice: number; salesAmount: number }[];
   salesTotal: number;
@@ -69,6 +70,7 @@ export function EstimatePdfDocument(props: EstimatePdfProps) {
         <View style={styles.headerRow}>
           <View style={styles.customerBlock}>
             <Text style={styles.customerName}>{props.billingName || props.customerName} 御中</Text>
+            {props.customerContact ? <Text>{props.customerContact} 様</Text> : null}
           </View>
           <View style={styles.companyBlock}>
             <Text style={styles.companyName}>{props.company.name}</Text>
