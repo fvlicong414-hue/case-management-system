@@ -25,6 +25,7 @@ export interface InvoiceExcelInput {
   totalAmount: number;
   company: {
     name?: string | null;
+    postalCode?: string | null;
     address?: string | null;
     phone?: string | null;
     invoiceRegistrationNumber?: string | null;
@@ -81,14 +82,15 @@ export function buildInvoiceExcel(input: InvoiceExcelInput): Buffer {
     setCell(sheet, "AY5", day);
   }
 
-  // 自社情報(登録番号・会社名・住所・電話)
+  // 自社情報(登録番号・会社名・郵便番号・住所・電話)
+  // テンプレートの元の構造(AL8=郵便番号だけの短い行、AL9=住所の行)に合わせて書き込む。
+  // 以前はAL8に住所までまとめて書き込んでいたため、その行の幅に収まらず文字が
+  // 見切れてしまっていた。
   if (input.company.invoiceRegistrationNumber) setCell(sheet, "AL6", input.company.invoiceRegistrationNumber);
   if (input.company.name) setCell(sheet, "AL7", input.company.name);
+  if (input.company.postalCode) setCell(sheet, "AL8", `〒${input.company.postalCode}`);
   if (input.company.address) {
-    setCell(sheet, "AL8", input.company.address);
-    // テンプレートに元々入っていた住所の続き(AL9・AL10)は、自社住所を1行にまとめて
-    // AL8へ書き込むこの方式では不要なため、二重表示を防ぐために空にする。
-    setCell(sheet, "AL9", "");
+    setCell(sheet, "AL9", input.company.address);
     setCell(sheet, "AL10", "");
   }
   if (input.company.phone) setCell(sheet, "AL11", `ＴＥＬ　${input.company.phone}`);

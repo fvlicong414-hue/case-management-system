@@ -38,6 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     totalAmount: invoice.totalAmount,
     company: {
       name: settings.companyName,
+      postalCode: settings.companyPostalCode,
       address: settings.companyAddress,
       phone: settings.companyPhone,
       invoiceRegistrationNumber: settings.companyInvoiceRegistrationNumber,
