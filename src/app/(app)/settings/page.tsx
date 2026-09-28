@@ -1,6 +1,7 @@
-import { requireSession } from "@/lib/auth";
+import { requireSession, can } from "@/lib/auth";
 import { getSettings } from "@/lib/db/settings";
 import { updateSettingsAction } from "@/lib/actions/settings";
+import { resetAllTestDataAction } from "@/lib/actions/dataReset";
 import { Card, CardHeader, Field, Input, Textarea, Button, PageHeader } from "@/components/ui";
 import { AlertBanner } from "@/components/ui/alert";
 
@@ -69,6 +70,26 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
           </div>
         </form>
       </Card>
+
+      {can(session, "manageTenant") && (
+        <Card className="mt-5 border-red-200">
+          <CardHeader title="テストデータの初期化" subtitle="顧客・案件・見積・請求書などをすべて削除し、まっさらな状態に戻します(元に戻せません)" />
+          <div className="p-5">
+            <p className="mb-3 text-sm text-red-600">
+              この操作を行う前に、必要なデータは「CSVエクスポート」画面から必ずバックアップを取ってください。
+              ログインアカウント・設定・書式マスターは削除されません。
+            </p>
+            <form action={resetAllTestDataAction} className="flex flex-wrap items-end gap-3">
+              <Field label='確認のため「初期化する」と入力してください'>
+                <Input name="confirmText" placeholder="初期化する" />
+              </Field>
+              <Button type="submit" variant="danger">
+                すべてのテストデータを初期化する
+              </Button>
+            </form>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }
